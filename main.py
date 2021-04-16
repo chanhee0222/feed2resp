@@ -87,7 +87,7 @@ def main():
                 print("Load checkpoint sucessfully!")
         except:
             print("Failed to load checkpoint!")
-    
+
     # train_iters, dev_iters, test_iters, vocab = load_dataset(config)
     train_iters, dev_iters, test_iters = model_F.train_dataloader(), model_F.val_dataloader(), model_F.test_dataloader()
     model_D = Discriminator(config, model_F.tokenizer).to(config.device)

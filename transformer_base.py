@@ -7,7 +7,7 @@ import pytorch_lightning as pl
 import torch
 
 from transformers import (
-    ALL_PRETRAINED_MODEL_ARCHIVE_MAP,
+    # ALL_PRETRAINED_MODEL_ARCHIVE_MAP,
     AdamW,
     AutoConfig,
     AutoModel,
@@ -19,14 +19,14 @@ from transformers import (
     AutoTokenizer,
     get_linear_schedule_with_warmup,
 )
-from transformers.modeling_auto import MODEL_MAPPING
+# from transformers.modeling_auto import MODEL_MAPPING
 
 
 logger = logging.getLogger(__name__)
 
 
-ALL_MODELS = tuple(ALL_PRETRAINED_MODEL_ARCHIVE_MAP)
-MODEL_CLASSES = tuple(m.model_type for m in MODEL_MAPPING)
+# ALL_MODELS = tuple(ALL_PRETRAINED_MODEL_ARCHIVE_MAP)
+# MODEL_CLASSES = tuple(m.model_type for m in MODEL_MAPPING)
 
 MODEL_MODES = {
     "base": AutoModel,
@@ -150,14 +150,14 @@ class BaseTransformer(pl.LightningModule):
             default=None,
             type=str,
             required=True,
-            help="Model type selected in the list: " + ", ".join(MODEL_CLASSES),
+            help="Model type selected in the list" #: " + ", ".join(MODEL_CLASSES),
         )
         parser.add_argument(
             "--model_name_or_path",
             default=None,
             type=str,
             required=True,
-            help="Path to pre-trained model or shortcut name selected in the list: " + ", ".join(ALL_MODELS),
+            help="Path to pre-trained model or shortcut name selected in the list",
         )
         parser.add_argument(
             "--config_name", default="", type=str, help="Pretrained config name or path if not the same as model_name"
@@ -271,14 +271,14 @@ def generic_train(model, args):
         raise ValueError("Output directory ({}) already exists and is not empty.".format(args.output_dir))
 
     checkpoint_callback = pl.callbacks.ModelCheckpoint(
-        filepath=args.output_dir, prefix="checkpoint", monitor="val_loss", mode="min", save_top_k=5
+        dirpath=args.output_dir, prefix="checkpoint", monitor="val_loss", mode="min", save_top_k=5
     )
 
     train_params = dict(
         accumulate_grad_batches=args.gradient_accumulation_steps,
         gpus=args.n_gpu,
         max_epochs=args.num_train_epochs,
-        early_stop_callback=False,
+        # early_stop_callback=False,
         gradient_clip_val=args.max_grad_norm,
         checkpoint_callback=checkpoint_callback,
         callbacks=[LoggingCallback()],

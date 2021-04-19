@@ -1,16 +1,11 @@
 import math
+
 import torch
-from torch import nn
 import torch.nn.functional as F
-from utils import idx2onehot
+from torch import nn
 
-import argparse
-import glob
-import logging
-import os
-import time
 
-import pdb
+# import pdb
 
 class StyleTransformer(nn.Module):
     def __init__(self, config, vocab):
@@ -200,7 +195,8 @@ class Decoder(nn.Module):
         y = self.norm(new_states[-1])[:, -1:]
         
         return self.generator(y, temperature), new_states
-    
+
+
 class Generator(nn.Module):
     def __init__(self, d_model, vocab_size):
         super(Generator, self).__init__()
@@ -209,17 +205,19 @@ class Generator(nn.Module):
     def forward(self, x, temperature):
         return F.log_softmax(self.proj(x) / temperature, dim=-1)
 
+
 class EmbeddingLayer(nn.Module):
     def __init__(self, tokenizer, d_model, max_length, pad_idx, learned_pos_embed, load_pretrained_embed):
         super(EmbeddingLayer, self).__init__()
-        self.token_embed = Embedding(tokenizer.vocab_size -1, d_model)
+        self.token_embed = Embedding(tokenizer.vocab_size, d_model)
         self.pos_embed = Embedding(max_length, d_model)
-        self.vocab_size = tokenizer.vocab_size -1
+        self.vocab_size = tokenizer.vocab_size
 
         load_pretrained_embed =False
         if load_pretrained_embed:
             self.token_embed = nn.Embedding.from_pretrained(vocab.vectors)
             print('embed loaded.')
+
     def forward(self, x, pos):
         if len(x.size()) == 2:
             y = self.token_embed(x) + self.pos_embed(pos)

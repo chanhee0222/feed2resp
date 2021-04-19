@@ -7,6 +7,8 @@ from torch import nn, optim
 from torch.nn.utils import clip_grad_norm_
 
 # from evaluator import Evaluator
+from tqdm import tqdm
+
 from utils import tensor2text, calc_ppl, idx2onehot, add_noise, word_drop
 
 # import pdb
@@ -224,7 +226,7 @@ def f_step(config, model_F, model_D, optimizer_F, batch, temperature, drop_decay
     # pdb.set_trace()
     gen_token_mask = torch.zeros_like(gen_soft_tokens)
     for i, length in enumerate(gen_lengths):
-        print(length, gen_soft_tokens.size())
+        # print(length, gen_soft_tokens.size())
         gen_token_mask[i] = torch.LongTensor([1] * length + [0] * (gen_soft_tokens.size(1) -length)).to(config.device)
     
     raw_styles = raw_styles.type(torch.LongTensor).to(config.device)
@@ -234,8 +236,6 @@ def f_step(config, model_F, model_D, optimizer_F, batch, temperature, drop_decay
     rev_y_ids = inp_tokens[:, :-1].contiguous()
     rev_lm_labels = inp_tokens[:, 1:].clone()
     rev_lm_labels[inp_tokens[:, 1:] == pad_idx] = -100
-
-    
 
     outputs = model_F(
         input_ids=gen_soft_tokens, attention_mask=gen_token_mask, decoder_input_ids=rev_y_ids, lm_labels=rev_lm_labels
@@ -321,64 +321,76 @@ def train(config, model_F, model_D, train_iters, dev_iters, test_iters):
                 k = (step - s_a) / (s_b - s_a)
                 temperature = (1 - k) * t_a + k * t_b
                 return temperature
-    batch_iters = iter(train_iters)
-    while True:
-        drop_decay = calc_temperature(config.drop_rate_config, global_step)
-        temperature = calc_temperature(config.temperature_config, global_step)
-        batch = next(batch_iters)
-        
-        for _ in range(config.iter_D):
-            batch = next(batch_iters)
-            d_adv_loss = d_step(
-                config, model_F, model_D, optimizer_D, batch, temperature
-            )
-            his_d_adv_loss.append(d_adv_loss)
-            
-        for _ in range(config.iter_F):
-            batch = next(batch_iters)
-            f_slf_loss, f_cyc_loss, f_adv_loss = f_step(
-                config, model_F, model_D, optimizer_F, batch, temperature, drop_decay, True)
 
-            his_f_slf_loss.append(f_slf_loss)
-            his_f_cyc_loss.append(f_cyc_loss)
-            his_f_adv_loss.append(f_adv_loss)
-            
-        
-        global_step += 1
-        #writer.add_scalar('rec_loss', rec_loss.item(), global_step)
-        #writer.add_scalar('loss', loss.item(), global_step)
-            
-            
-        if global_step % config.log_steps == 0:
-            avrg_d_adv_loss = np.mean(his_d_adv_loss)
-            avrg_f_slf_loss = np.mean(his_f_slf_loss)
-            avrg_f_cyc_loss = np.mean(his_f_cyc_loss)
-            avrg_f_adv_loss = np.mean(his_f_adv_loss)
-            log_str = '[iter {}] d_adv_loss: {:.4f}  ' + \
-                      'f_slf_loss: {:.4f}  f_cyc_loss: {:.4f}  ' + \
-                      'f_adv_loss: {:.4f}  temp: {:.4f}  drop: {:.4f}'
-            print(log_str.format(
-                global_step, avrg_d_adv_loss,
-                avrg_f_slf_loss, avrg_f_cyc_loss, avrg_f_adv_loss,
-                temperature, config.inp_drop_prob * drop_decay
-            ))
-                
-        if global_step % config.eval_steps == 0:
+    progress = None
+    for epoch in range(config.num_train_epochs):
+        try:
+            batch_iters = iter(train_iters)
+            progress = tqdm(total=len(batch_iters))
+            while True:
+                drop_decay = calc_temperature(config.drop_rate_config, global_step)
+                temperature = calc_temperature(config.temperature_config, global_step)
+                # batch = next(batch_iters)
+
+                for _ in range(config.iter_D):
+                    batch = next(batch_iters)
+                    progress.update(1)
+                    d_adv_loss = d_step(
+                        config, model_F, model_D, optimizer_D, batch, temperature
+                    )
+                    his_d_adv_loss.append(d_adv_loss)
+
+                for _ in range(config.iter_F):
+                    batch = next(batch_iters)
+                    progress.update(1)
+                    f_slf_loss, f_cyc_loss, f_adv_loss = f_step(
+                        config, model_F, model_D, optimizer_F, batch, temperature, drop_decay, True)
+
+                    his_f_slf_loss.append(f_slf_loss)
+                    his_f_cyc_loss.append(f_cyc_loss)
+                    his_f_adv_loss.append(f_adv_loss)
+
+
+                global_step += 1
+                #writer.add_scalar('rec_loss', rec_loss.item(), global_step)
+                #writer.add_scalar('loss', loss.item(), global_step)
+
+
+                if global_step % config.log_steps == 0:
+                    avrg_d_adv_loss = np.mean(his_d_adv_loss)
+                    avrg_f_slf_loss = np.mean(his_f_slf_loss)
+                    avrg_f_cyc_loss = np.mean(his_f_cyc_loss)
+                    avrg_f_adv_loss = np.mean(his_f_adv_loss)
+                    log_str = '[iter {}] d_adv_loss: {:.4f}  ' + \
+                              'f_slf_loss: {:.4f}  f_cyc_loss: {:.4f}  ' + \
+                              'f_adv_loss: {:.4f}  temp: {:.4f}  drop: {:.4f}'
+                    print(log_str.format(
+                        global_step, avrg_d_adv_loss,
+                        avrg_f_slf_loss, avrg_f_cyc_loss, avrg_f_adv_loss,
+                        temperature, config.inp_drop_prob * drop_decay
+                    ))
+
+        except StopIteration:
+            print(f"End of epoch {epoch + 1}")
             his_d_adv_loss = []
             his_f_slf_loss = []
             his_f_cyc_loss = []
             his_f_adv_loss = []
-            
-            #save model
+
+            # save model
             torch.save(model_F.state_dict(), config.save_folder + '/ckpts/' + str(global_step) + '_F.pth')
             torch.save(model_D.state_dict(), config.save_folder + '/ckpts/' + str(global_step) + '_D.pth')
 
-        # pdb.set_trace()
-        for i, batch in enumerate(test_iters):
-            predictions = test_step(config, model_F, batch)
-            print('*' * 20, '********', '*' * 20)
-            print('[preditions ]', predictions['preds'])
-            print('[target ]', predictions['target'])
+            # pdb.set_trace()
+            for i, batch in enumerate(test_iters):
+                predictions = test_step(config, model_F, batch)
+                print('*' * 20, '********', '*' * 20)
+                print('[preditions ]', predictions['preds'])
+                print('[target ]', predictions['target'])
+
+        finally:
+            if progress is not None:
+                progress.close()
 
 
 '''            auto_eval(config, model_F, test_iters, global_step, temperature)

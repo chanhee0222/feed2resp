@@ -18,10 +18,19 @@ class BartSystem(BaseTransformer):
 
     mode = "language-modeling"
 
+    # Special tokens used as delimiter.
+    response_sep = "[RES]"
+    person_sep = ["[P1]", "[P2]"]
+
     def __init__(self, hparams):
         super(BartSystem, self).__init__(hparams, num_labels=None, mode=self.mode)
         self.configure_optimizers()
         # self.add_style_token()
+
+        # Add separator tokens.
+        # self.tokenizer.add_tokens(BartSystem.person_sep)
+        # self.tokenizer.add_tokens(BartSystem.response_sep)
+        # self.model.resize_token_embeddings(len(self.tokenizer))
 
     def add_style_token(self):
         # https://github.com/huggingface/transformers/issues/1413
@@ -37,7 +46,7 @@ class BartSystem(BaseTransformer):
             attention_mask=attention_mask,
             decoder_input_ids=decoder_input_ids,
             decoder_attention_mask=decoder_attention_mask,
-            lm_labels=lm_labels,
+            labels=lm_labels,
         )
 
     def _step(self, batch):
@@ -114,7 +123,7 @@ class BartSystem(BaseTransformer):
         train_dataset = SummarizationDataset(
             self.tokenizer, data_dir=self.hparams.data_dir, type_path="train", block_size=self.hparams.max_seq_length
         )
-        dataloader = DataLoader(train_dataset, batch_size=self.hparams.train_batch_size)
+        dataloader = DataLoader(train_dataset, batch_size=self.hparams.train_batch_size, num_workers=2, pin_memory=True, shuffle=True)
         t_total = (
             (len(dataloader.dataset) // (self.hparams.train_batch_size * max(1, self.hparams.n_gpu)))
             // self.hparams.gradient_accumulation_steps
@@ -130,13 +139,13 @@ class BartSystem(BaseTransformer):
         val_dataset = SummarizationDataset(
             self.tokenizer, data_dir=self.hparams.data_dir, type_path="val", block_size=self.hparams.max_seq_length
         )
-        return DataLoader(val_dataset, batch_size=self.hparams.eval_batch_size)
+        return DataLoader(val_dataset, batch_size=self.hparams.eval_batch_size, num_workers=2, pin_memory=True)
 
     def test_dataloader(self):
         test_dataset = SummarizationDataset(
             self.tokenizer, data_dir=self.hparams.data_dir, type_path="test", block_size=self.hparams.max_seq_length
         )
-        return DataLoader(test_dataset, batch_size=self.hparams.eval_batch_size)
+        return DataLoader(test_dataset, batch_size=self.hparams.eval_batch_size, num_workers=2, pin_memory=True)
 
     @staticmethod
     def add_model_specific_args(parser, root_dir):
@@ -144,7 +153,7 @@ class BartSystem(BaseTransformer):
         # Add BART specific options
         parser.add_argument(
             "--max_seq_length",
-            default=1024,
+            default=1023,
             type=int,
             help="The maximum total input sequence length after tokenization. Sequences longer "
             "than this will be truncated, sequences shorter will be padded.",

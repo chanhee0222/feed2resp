@@ -1,22 +1,19 @@
-import torch
 import argparse
 import glob
-import logging
 import os
-import time
 
-from data import load_dataset
-from models import StyleTransformer, Discriminator, BartSystem
+import torch
+
+from models import Discriminator, BartSystem
 from train import train
-
-from transformer_base import add_generic_args, add_generic_args, generic_train
+from transformer_base import add_generic_args, generic_train
 
 
 class Config():
-    data_path = './data/chatbot/'
-    log_dir = 'runs/exp'
+    # data_path = './data/chatbot/'
+    # log_dir = 'runs/exp'
     save_path = './save'
-    pretrained_embed_path = './embedding/'
+    # pretrained_embed_path = './embedding/'
     device = torch.device('cuda' if True and torch.cuda.is_available() else 'cpu')
     # device = torch.device('cpu')
     discriminator_method = 'Multi' # 'Multi' or 'Cond'
@@ -75,10 +72,13 @@ def main():
     parser = BartSystem.add_model_specific_args(parser, os.getcwd())
     args = parser.parse_args()
 
+    setattr(config, "num_train_epochs", args.num_train_epochs)
+    setattr(config, "save_path", args.output_dir)
+
     model_F = BartSystem(args).to(config.device)
     # Don't use the trainer to fit the model
     args.do_train = False
-    trainer = generic_train(model_F, args)
+    # trainer = generic_train(model_F, args)
     if args.output_dir:
         try:
             checkpoints = list(sorted(glob.glob(os.path.join(args.output_dir, "checkpointepoch=*.ckpt"), recursive=True)))
@@ -93,8 +93,8 @@ def main():
     model_D = Discriminator(config, model_F.tokenizer).to(config.device)
 
     print(config.discriminator_method)
-    import pdb
-    pdb.set_trace()
+    # import pdb
+    # pdb.set_trace()
     print(model_D)
 
     train(config, model_F, model_D, train_iters, dev_iters, test_iters)

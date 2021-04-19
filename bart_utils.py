@@ -1,9 +1,12 @@
 import os
 
 from torch.utils.data import Dataset
+from tqdm import tqdm
 
 
 class SummarizationDataset(Dataset):
+    label_sep = '__label__'
+
     def __init__(self, tokenizer, data_dir="./cnn-dailymail/cnn_dm/", type_path="train", block_size=1024):
         super(SummarizationDataset,).__init__()
         self.tokenizer = tokenizer
@@ -13,28 +16,42 @@ class SummarizationDataset(Dataset):
 
         self.source_style = []
 
-        print("loading " + type_path + " source.")
-
+        # count = 0
         with open(os.path.join(data_dir, type_path + ".source"), "r") as f:
-            for line in f.readlines():  # each text is a line and a full story
-                text, text_style = line.strip('\"|\n').split('__label__')
+            for line in tqdm(f.readlines(), desc=f"Loading {type_path}.source"):  # each text is a line and a full story
+                text, text_style = line.strip('\"|\n').split(SummarizationDataset.label_sep)
                 self.source_style.append(int(text_style))
                 tokenized = tokenizer.batch_encode_plus(
-                    [text], max_length=block_size, pad_to_max_length=True, return_tensors="pt"
+                    [text],
+                    max_length=block_size,
+                    truncation=True,
+                    padding='max_length',
+                    return_tensors="pt"
                 )
                 self.source.append(tokenized)
-            f.close()
 
-        print("loading " + type_path + " target.")
+                # count += 1
+                # if count > 100:
+                #     print("Stopping data loading!!!")
+                #     break
 
+        # count = 0
         with open(os.path.join(data_dir, type_path + ".target"), "r") as f:
-            for text in f.readlines():  # each text is a line and a summary
+            for text in tqdm(f.readlines(), desc=f"Loading {type_path}.target"):  # each text is a line and a summary
                 text=text.strip('\"|\n')
                 tokenized = tokenizer.batch_encode_plus(
-                    [text], max_length=56, pad_to_max_length=True, return_tensors="pt"
+                    [text],
+                    max_length=56,
+                    truncation=True,
+                    padding='max_length',
+                    return_tensors="pt"
                 )
                 self.target.append(tokenized)
-            f.close()
+
+                # count += 1
+                # if count > 100:
+                #     print("Stopping data loading!!!")
+                #     break
 
     def __len__(self):
         return len(self.source)

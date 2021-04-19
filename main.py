@@ -31,8 +31,8 @@ class Config():
     num_classes = num_styles + 1 if discriminator_method == 'Multi' else 2
     num_layers = 4
     # batch_size = 64
-    lr_F = 0.0001
-    lr_D = 0.0001
+    lr_F = 5e-6
+    lr_D = 1e-4
     L2 = 0
     iter_D = 10
     iter_F = 5
@@ -78,8 +78,10 @@ def main():
     parser = BartSystem.add_model_specific_args(parser, os.getcwd())
     args = parser.parse_args()
 
+    # Some values from Config class needs to be copied to args to work.
     setattr(config, "num_train_epochs", args.num_train_epochs)
     setattr(config, "save_path", args.output_dir)
+    setattr(args, "learning_rate", config.lr_F)
 
     # Create output directory.
     timestamp = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')

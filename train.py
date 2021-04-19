@@ -1,9 +1,10 @@
+import logging
 import os
 import time
 import torch
 import numpy as np
 from torch import nn, optim
-#from tensorboardX import SummaryWriter
+from tensorboardX import SummaryWriter
 from torch.nn.utils import clip_grad_norm_
 
 # from evaluator import Evaluator
@@ -226,7 +227,7 @@ def f_step(config, model_F, model_D, optimizer_F, batch, temperature, drop_decay
     # pdb.set_trace()
     gen_token_mask = torch.zeros_like(gen_soft_tokens)
     for i, length in enumerate(gen_lengths):
-        # print(length, gen_soft_tokens.size())
+        # logger.info(length, gen_soft_tokens.size())
         gen_token_mask[i] = torch.LongTensor([1] * length + [0] * (gen_soft_tokens.size(1) -length)).to(config.device)
     
     raw_styles = raw_styles.type(torch.LongTensor).to(config.device)
@@ -272,6 +273,8 @@ def f_step(config, model_F, model_D, optimizer_F, batch, temperature, drop_decay
     return slf_rec_loss.item(), cyc_rec_loss.item(), adv_loss.item()
 
 def train(config, model_F, model_D, train_iters, dev_iters, test_iters):
+    logger = logging.getLogger(__name__)
+    summary = SummaryWriter(config.save_folder)
     # optimizer_F = optim.Adam(model_F.parameters(), lr=config.lr_F, weight_decay=config.L2)
     model_F.configure_optimizers()
     optimizer_F = model_F.opt
@@ -287,12 +290,7 @@ def train(config, model_F, model_D, train_iters, dev_iters, test_iters):
     model_F.train()
     model_D.train()
 
-    config.save_folder = config.save_path + '/' + str(time.strftime('%b%d%H%M%S', time.localtime()))
-    os.makedirs(config.save_folder)
-    os.makedirs(config.save_folder + '/ckpts')
-    print('Save Path:', config.save_folder)
-
-    print('Model F pretraining......')
+    logger.info('Model F pretraining......')
     for i, batch in enumerate(train_iters):
         if i >= config.F_pretrain_iter:
             break
@@ -305,10 +303,10 @@ def train(config, model_F, model_D, train_iters, dev_iters, test_iters):
             avrg_f_cyc_loss = np.mean(his_f_cyc_loss)
             his_f_slf_loss = []
             his_f_cyc_loss = []
-            print('[iter: {}] slf_loss:{:.4f}, rec_loss:{:.4f}'.format(i + 1, avrg_f_slf_loss, avrg_f_cyc_loss))
+            logger.info('[iter: {}] slf_loss:{:.4f}, rec_loss:{:.4f}'.format(i + 1, avrg_f_slf_loss, avrg_f_cyc_loss))
 
     
-    print('Training start......')
+    logger.info('Training start......')
 
     def calc_temperature(temperature_config, step):
         num = len(temperature_config)
@@ -364,29 +362,37 @@ def train(config, model_F, model_D, train_iters, dev_iters, test_iters):
                     log_str = '[iter {}] d_adv_loss: {:.4f}  ' + \
                               'f_slf_loss: {:.4f}  f_cyc_loss: {:.4f}  ' + \
                               'f_adv_loss: {:.4f}  temp: {:.4f}  drop: {:.4f}'
-                    print(log_str.format(
+                    logger.info(log_str.format(
                         global_step, avrg_d_adv_loss,
                         avrg_f_slf_loss, avrg_f_cyc_loss, avrg_f_adv_loss,
                         temperature, config.inp_drop_prob * drop_decay
                     ))
+                    summary.add_scalar("loss/d_adv", avrg_d_adv_loss, global_step)
+                    summary.add_scalar("loss/f_slf", avrg_f_slf_loss, global_step)
+                    summary.add_scalar("loss/f_cyc", avrg_f_cyc_loss, global_step)
+                    summary.add_scalar("loss/f_adv", avrg_f_adv_loss, global_step)
+                    summary.add_scalar("stats/temperature", temperature, global_step)
+                    summary.add_scalar("stats/drop", config.inp_drop_prob * drop_decay, global_step)
+
+                    summary.flush()
 
         except StopIteration:
-            print(f"End of epoch {epoch + 1}")
+            logger.info(f"End of epoch {epoch + 1}")
             his_d_adv_loss = []
             his_f_slf_loss = []
             his_f_cyc_loss = []
             his_f_adv_loss = []
 
             # save model
-            torch.save(model_F.state_dict(), config.save_folder + '/ckpts/' + str(global_step) + '_F.pth')
-            torch.save(model_D.state_dict(), config.save_folder + '/ckpts/' + str(global_step) + '_D.pth')
+            torch.save(model_F.state_dict(), os.path.join(config.save_folder, 'ckpts', f"{global_step}_F.pth"))
+            torch.save(model_D.state_dict(), os.path.join(config.save_folder, 'ckpts', f"{global_step}_D.pth"))
 
             # pdb.set_trace()
             for i, batch in enumerate(test_iters):
                 predictions = test_step(config, model_F, batch)
-                print('*' * 20, '********', '*' * 20)
-                print('[preditions ]', predictions['preds'])
-                print('[target ]', predictions['target'])
+                logger.info('*' * 20, '********', '*' * 20)
+                logger.info('[preditions ]', predictions['preds'])
+                logger.info('[target ]', predictions['target'])
 
         finally:
             if progress is not None:

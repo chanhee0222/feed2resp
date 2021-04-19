@@ -1,3 +1,4 @@
+import logging
 import math
 
 import torch
@@ -208,6 +209,7 @@ class Generator(nn.Module):
 
 class EmbeddingLayer(nn.Module):
     def __init__(self, tokenizer, d_model, max_length, pad_idx, learned_pos_embed, load_pretrained_embed):
+        logger = logging.getLogger(__name__)
         super(EmbeddingLayer, self).__init__()
         self.token_embed = Embedding(tokenizer.vocab_size, d_model)
         self.pos_embed = Embedding(max_length, d_model)
@@ -216,7 +218,7 @@ class EmbeddingLayer(nn.Module):
         load_pretrained_embed =False
         if load_pretrained_embed:
             self.token_embed = nn.Embedding.from_pretrained(vocab.vectors)
-            print('embed loaded.')
+            logger.info('embed loaded.')
 
     def forward(self, x, pos):
         if len(x.size()) == 2:

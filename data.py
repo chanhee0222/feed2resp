@@ -1,3 +1,4 @@
+import logging
 import time
 import numpy as np
 import torchtext
@@ -18,7 +19,7 @@ class DatasetIterator(object):
 def load_dataset(config, train_pos='train.hh', train_neg='train.fb',
                  dev_pos='dev.hh', dev_neg='dev.fb',
                  test_pos='test.hh', test_neg='test.fb'):
-
+    logger = logging.getLogger(__name__)
     root = config.data_path
     TEXT = data.Field(batch_first=True, eos_token='<eos>')
     
@@ -39,9 +40,9 @@ def load_dataset(config, train_pos='train.hh', train_neg='train.fb',
         
         vectors=torchtext.vocab.GloVe('6B', dim=config.embed_size, cache=config.pretrained_embed_path)
         TEXT.vocab.set_vectors(vectors.stoi, vectors.vectors, vectors.dim)
-        print('vectors', TEXT.vocab.vectors.size())
+        logger.info('vectors', TEXT.vocab.vectors.size())
         
-        print('load embedding took {:.2f} s.'.format(time.time() - start))
+        logger.info('load embedding took {:.2f} s.'.format(time.time() - start))
 
     vocab = TEXT.vocab
         

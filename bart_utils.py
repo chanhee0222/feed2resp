@@ -32,7 +32,7 @@ class SummarizationDataset(Dataset):
 
                 # count += 1
                 # if count > 100:
-                #     print("Stopping data loading!!!")
+                #     logger.info("Stopping data loading!!!")
                 #     break
 
         # count = 0
@@ -50,7 +50,7 @@ class SummarizationDataset(Dataset):
 
                 # count += 1
                 # if count > 100:
-                #     print("Stopping data loading!!!")
+                #     logger.info("Stopping data loading!!!")
                 #     break
 
     def __len__(self):

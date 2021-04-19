@@ -36,7 +36,7 @@ class BartSystem(BaseTransformer):
         # https://github.com/huggingface/transformers/issues/1413
         self.tokenizer.add_tokens(["[style1]", "[style2]"])
         self.model.resize_token_embeddings(len(self.tokenizer))  
-        # print(self.model.shared.word_embeddings.weight[-2, :])
+        # logger.info(self.model.shared.word_embeddings.weight[-2, :])
 
     def forward(
         self, input_ids, attention_mask=None, decoder_input_ids=None, decoder_attention_mask=None, lm_labels=None

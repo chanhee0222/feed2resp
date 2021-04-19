@@ -1,9 +1,13 @@
 import argparse
+import datetime
 import glob
+import logging
 import os
+import time
 
 import torch
 
+from logging_helper import init_logger
 from models import Discriminator, BartSystem
 from train import train
 from transformer_base import add_generic_args, generic_train
@@ -56,6 +60,7 @@ class Config():
     max_target_length=56
     data_dir="feedback"
 
+
 def get_n_params(model):
     pp=0
     for p in list(model.parameters()):
@@ -64,6 +69,7 @@ def get_n_params(model):
             nn = nn*s
         pp += nn
     return pp
+
 
 def main():
     config = Config()
@@ -75,6 +81,13 @@ def main():
     setattr(config, "num_train_epochs", args.num_train_epochs)
     setattr(config, "save_path", args.output_dir)
 
+    # Create output directory.
+    timestamp = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
+    setattr(config, "save_folder", os.path.join(config.save_path, timestamp))
+    os.makedirs(os.path.join(config.save_folder, 'ckpts'))
+    init_logger(config.save_folder)
+    logger = logging.getLogger(__name__)
+
     model_F = BartSystem(args).to(config.device)
     # Don't use the trainer to fit the model
     args.do_train = False
@@ -84,18 +97,18 @@ def main():
             checkpoints = list(sorted(glob.glob(os.path.join(args.output_dir, "checkpointepoch=*.ckpt"), recursive=True)))
             if checkpoints[-1]:
                 BartSystem.load_from_checkpoint(checkpoints[-1])
-                print("Load checkpoint sucessfully!")
+                logger.info("Load checkpoint sucessfully!")
         except:
-            print("Failed to load checkpoint!")
+            logger.info("Failed to load checkpoint!")
 
     # train_iters, dev_iters, test_iters, vocab = load_dataset(config)
     train_iters, dev_iters, test_iters = model_F.train_dataloader(), model_F.val_dataloader(), model_F.test_dataloader()
     model_D = Discriminator(config, model_F.tokenizer).to(config.device)
 
-    print(config.discriminator_method)
+    logger.info(config.discriminator_method)
     # import pdb
     # pdb.set_trace()
-    print(model_D)
+    logger.info(model_D)
 
     train(config, model_F, model_D, train_iters, dev_iters, test_iters)
     
